@@ -20,39 +20,24 @@ const APP_SECRET = process.env.META_APP_SECRET || "";
 app.get("/", (_, res) => res.status(200).send("OK"));
 
 // 1) Webhook verification (Meta will call this once when you add the callback URL)
+const VERIFY_TOKEN = (process.env.VERIFY_TOKEN || "").trim();
+
 app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
+  const mode = (req.query["hub.mode"] || "").trim();
+  const token = (req.query["hub.verify_token"] || "").trim();
   const challenge = req.query["hub.challenge"];
+
+  console.log("Mode:", mode);
+  console.log("Incoming token:", token);
+  console.log("Env VERIFY_TOKEN:", VERIFY_TOKEN);
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     return res.status(200).send(challenge);
   }
+
   return res.sendStatus(403);
 });
 
-// Verify Meta signature (recommended)
-function isValidSignature(req) {
-  // If you haven't set META_APP_SECRET yet, allow (dev); set it for production.
-  if (!APP_SECRET) return true;
-
-  const header = req.get("x-hub-signature-256");
-  if (!header) return false;
-
-  const [algo, sig] = header.split("=");
-  if (algo !== "sha256" || !sig) return false;
-
-  const expected = crypto
-    .createHmac("sha256", APP_SECRET)
-    .update(req.rawBody || Buffer.from(""))
-    .digest("hex");
-
-  const sigBuf = Buffer.from(sig, "hex");
-  const expBuf = Buffer.from(expected, "hex");
-  if (sigBuf.length !== expBuf.length) return false;
-
-  return crypto.timingSafeEqual(sigBuf, expBuf);
-}
 
 // 2) Receive events (Meta will POST JSON here)
 app.post("/webhook", async (req, res) => {
